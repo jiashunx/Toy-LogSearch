@@ -1,0 +1,54 @@
+{
+  "sit2": {
+    "newcore": [
+      {
+        "ip": "192.168.43.36",
+        "port": 22,
+        "username": "jiashunx",
+        "password": "1234.abcd",
+        "log_path": [
+          "/app/log/20*/file*",
+          "/app/log/log.txt"
+        ]
+      }
+    ],
+    "print": [
+      {
+        "ip": "192.168.43.36",
+        "port": 22,
+        "username": "jiashunx",
+        "password": "1234.abcd",
+        "log_path": [
+          "/app/log/20*/file*",
+          "/app/log/log.txt"
+        ]
+      }
+    ]
+  },
+  "t3": {
+    "newcore": [
+      {
+        "ip": "192.168.43.36",
+        "port": 22,
+        "username": "jiashunx",
+        "password": "1234.abcd",
+        "log_path": [
+          "/app/log/20*/file*",
+          "/app/log/log.txt"
+        ]
+      }
+    ],
+    "print": [
+      {
+        "ip": "192.168.43.36",
+        "port": 22,
+        "username": "jiashunx",
+        "password": "1234.abcd",
+        "log_path": [
+          "/app/log/20*/file*",
+          "/app/log/log.txt"
+        ]
+      }
+    ]
+  }
+}
