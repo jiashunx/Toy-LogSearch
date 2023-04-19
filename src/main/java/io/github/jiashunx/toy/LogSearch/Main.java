@@ -1,123 +1,180 @@
 package io.github.jiashunx.toy.LogSearch;
 
-import com.alibaba.fastjson.JSON;
+import io.github.jiashunx.masker.rest.framework.MRestServer;
+import io.github.jiashunx.masker.rest.framework.util.StringUtils;
 import io.github.jiashunx.tools.jsch.SSHExecutor;
 import io.github.jiashunx.tools.jsch.SSHRequest;
 import io.github.jiashunx.tools.jsch.SSHResponse;
-import org.apache.commons.io.IOUtils;
+import io.github.jiashunx.toy.LogSearch.model.AllConfig;
+import io.github.jiashunx.toy.LogSearch.model.Server;
+import io.github.jiashunx.toy.LogSearch.model.ServiceConfig;
+import io.github.jiashunx.toy.LogSearch.type.CommandType;
+import io.github.jiashunx.toy.LogSearch.utils.CommandHelper;
+import io.netty.handler.codec.http.HttpResponseStatus;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import java.io.ByteArrayOutputStream;
 import java.io.File;
-import java.io.FileInputStream;
-import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Scanner;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
+ * -Dserver.port=38889
+ * -Dconfig.server=http://127.0.0.1:38888
  * @author jiashunx
  */
 public class Main {
 
-    public static void main(String[] args) throws Throwable {
-        Map<String, List<SSHRequest>> configMap = new HashMap<>();
-        String configFilePath = System.getProperty("user.dir") + File.separator + "config.json";
-        FileInputStream inputStream = new FileInputStream(configFilePath);
-        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-        IOUtils.copy(inputStream, outputStream);
-        String jsonContent = new String(outputStream.toByteArray(), StandardCharsets.UTF_8);
-        Map<String, Object> jsonMap = JSON.parseObject(jsonContent);
-        jsonMap.forEach((key0, value0) -> {
-            String envName = key0;
-            Map<String, Object> envInfo = (Map<String, Object>) value0;
-            envInfo.forEach((key1, value1) -> {
-                String serviceName = key1;
-                List<Object> serviceList = (List<Object>) value1;
-                serviceList.forEach(value2 -> {
-                    Map<String, Object> serverInfo = (Map<String, Object>) value2;
-                    String ip = (String) serverInfo.get("ip");
-                    int port = Integer.parseInt(String.valueOf(serverInfo.get("port")));
-                    String username = (String) serverInfo.get("username");
-                    String password = (String) serverInfo.get("password");
-                    List<String> logPathList = (List<String>) serverInfo.get("log_path");
-                    List<String> commands = new ArrayList<>(logPathList.size());
-                    commands.addAll(logPathList);
-                    System.out.println(String.format("%s -> %s -> %s:%d -> %s/%s -> %s", envName, serviceName, ip, port, username, password, logPathList.toString()));
-                    String configId = envName + "___________" + serviceName;
-                    configMap.computeIfAbsent(configId, k -> new ArrayList<>()).add(
-                            new SSHRequest(ip, port, username, password, commands.toArray(new String[0]))
-                    );
-                });
-            });
-        });
+    private static final Logger logger = LoggerFactory.getLogger(Main.class);
 
-        /*
-        System.out.println(System.getProperty("user.dir"));
-        SSHRequest sshRequest = new SSHRequest("192.168.43.36", 22, "jiashunx", "1234.abcd", "ls");
-        SSHResponse sshResponse = SSHExecutor.execCommand(sshRequest);
-        System.out.println(sshResponse.getErrorContent());
-        System.out.println(sshResponse.getOutputContent());
-        */
+    public static void main(String[] args) throws Throwable {
+        AtomicReference<AllConfig> allConfigRef = new AtomicReference<>(loadConfig(args));
+        if (allConfigRef.get() == null) {
+            System.out.println("配置文件解析异常");
+            return;
+        }
+        new Thread(() -> {
+            String port = System.getProperty("server.port");
+            if (StringUtils.isEmpty(port)) {
+                port = "38888";
+            }
+            new MRestServer(Integer.parseInt(port), "config-server")
+                .context("/")
+                .filter("/*", (request, response, filterChain) -> {
+                    String requestUrl = request.getUrl();
+                    if (requestUrl.equals("/config.json")) {
+                        filterChain.doFilter(request, response);
+                        return;
+                    }
+                    response.write(HttpResponseStatus.NOT_FOUND);
+                })
+                .get("/config.json", (request, response) -> {
+                    response.write(allConfigRef.get());
+                })
+                .getRestServer()
+                .start();
+        }, "config-server").start();
         Scanner scanner = new Scanner(System.in);
         String inputLine = null;
-        while (inputLine == null || inputLine.trim().isEmpty()) {
+        allConfigRef.get().printConfigInfo();
+        CommandHelper.printHelpInfo();
+        while (true) {
             try {
-                System.out.println("");
-                System.out.println("1.命令执行参数格式：[环境名] [服务名] bash [待执行命令(可有空格)]");
-                System.out.println("  命令执行参数样例: t3 print bash cat /log/print.log | grep 哈哈哈哈哈哈哈");
-                System.out.println("2.日志查询参数格式：[环境名] [服务名] grep [待执行查询条件(自定义grep命令)]");
-                System.out.println("  日志查询参数样例: sit2 newcore grep 就将计就计");
-                System.out.println("3.日志查询参数格式：[环境名] [服务名] [查询条件1] [查询条件2] [查询条件3]");
-                System.out.println("  日志查询参数样例: sit2 newcore 流水号");
                 System.out.print("请输入==> ");
-//                inputLine = new String(scanner.nextLine().getBytes("GBK"), "UTF-8");
+                // inputLine = new String(scanner.nextLine().getBytes("GBK"), "UTF-8");
                 inputLine = scanner.nextLine();
-                System.out.println("录入参数: " + inputLine);
-                String[] queryArgs = inputLine.split(" ");
-                int argsNum = queryArgs.length;
-                if (argsNum <= 2 || argsNum == 3 && ("bash".equals(queryArgs[2]) || "grep".equals(queryArgs[2]))) {
-                    System.err.println("查询条件有误！");
+                System.out.println("录入参数==> " + inputLine);
+
+                CommandType commandType = CommandHelper.getCommandType(inputLine);
+                if (commandType == null) {
+                    System.out.println("录入参数有误，无法匹配命令，请重新输入！");
+                    CommandHelper.printHelpInfo();
                     inputLine = null;
                     continue;
                 }
-                String envName = queryArgs[0];
-                String serviceName = queryArgs[1];
-                String configId = envName + "___________" + serviceName;
-                if ("bash".equals(queryArgs[2])) {// 第三个参数是bash, 则执行指定命令
-                    StringBuilder commandBuilder = new StringBuilder();
-                    for (int i = 3; i < argsNum; i++) {
-                        commandBuilder.append(queryArgs[i]).append(" ");
+
+                String[] commandArgs = CommandHelper.getCommandArgs(inputLine);
+                if (commandArgs == null) {
+                    System.out.println("录入参数解析失败，请重新输入！");
+                    CommandHelper.printHelpInfo();
+                    inputLine = null;
+                    continue;
+                }
+
+                if (commandType == CommandType.HELP) {
+                    CommandHelper.printHelpInfo();
+                    inputLine = null;
+                    continue;
+                }
+
+                if (commandType == CommandType.EXIT || commandType == CommandType.QUIT) {
+                    if (logger.isWarnEnabled()) {
+                        logger.warn("结束main线程.");
                     }
-                    configMap.computeIfAbsent(configId, k -> new ArrayList<>()).forEach(r -> {
-                        SSHRequest sshRequest = new SSHRequest(r.getRemoteHost(), r.getSshPort(), r.getUsername(), r.getPassword(), commandBuilder.toString());
-                        SSHResponse sshResponse = SSHExecutor.execCommand(sshRequest);
-                        System.out.println("START ===================================================");
-                        System.out.println(String.format("%s -> %s", sshResponse.getRemoteHost(), sshResponse.getCommand()));
-                        System.out.println("命令执行是否成功? " + sshResponse.isSuccess());
-                        System.out.println("命令执行返回结果: " + sshResponse.getOutputContent());
-                        System.out.println("命令执行返回异常: " + sshResponse.getErrorContent());
-                        System.out.println("FIN =====================================================");
-                    });
-                } else if ("grep".equals(queryArgs[2])) {
-                    StringBuilder commandSuffix = new StringBuilder(" | grep ");
-                    for (int i = 3; i < argsNum; i++) {
-                        commandSuffix.append(queryArgs[i]).append(" ");
+                    System.exit(1);
+                    break;
+                }
+
+                if (commandType == CommandType.RELOAD) {
+                    AllConfig allConfig = loadConfig(args);
+                    if (allConfig == null) {
+                        System.out.println("重新加载配置文件，获取配置信息为null，不更新配置信息！");
+                        allConfigRef.get().printConfigInfo();
+                        CommandHelper.printHelpInfo();
+                        inputLine = null;
+                        continue;
                     }
-                    configMap.computeIfAbsent(configId, k -> new ArrayList<>()).forEach(r -> {
-                        doLogQuery(r, commandSuffix.toString());
-                    });
-                } else {
-                    StringBuilder commandSuffix = new StringBuilder();
-                    for (int i = 2; i < argsNum; i++) {
-                        commandSuffix.append(" | grep ").append(queryArgs[i]);
+                    allConfigRef.set(allConfig);
+                    allConfigRef.get().printConfigInfo();
+                    CommandHelper.printHelpInfo();
+                    inputLine = null;
+                    continue;
+                }
+
+                String env = commandArgs[0];
+                String service = commandArgs[1];
+                List<ServiceConfig> configs = allConfigRef.get().getEnvServiceConfigs(env, service);
+                if (configs.isEmpty()) {
+                    System.out.println(String.format("未找到env[%s], service[%s] 对应服务配置，请重新输入！", env, service));
+                    CommandHelper.printHelpInfo();
+                    inputLine = null;
+                    continue;
+                }
+                Map<String, Server> serverMap = new HashMap<>();
+                for (ServiceConfig config: configs) {
+                    Server server = allConfigRef.get().getServerByIp(config.getIp());
+                    if (server != null) {
+                        serverMap.put(config.getIp(), server);
                     }
-                    configMap.computeIfAbsent(configId, k -> new ArrayList<>()).forEach(r -> {
-                        doLogQuery(r, commandSuffix.toString());
-                    });
+                }
+                if (serverMap.isEmpty()) {
+                    System.out.println(String.format("未找到env[%s], service[%s] 对应服务器配置，请重新输入！", env, service));
+                    CommandHelper.printHelpInfo();
+                    inputLine = null;
+                    continue;
+                }
+
+                String command = "";
+                // 根据配置文件中配置的日志路径进行检索
+                if (commandType == CommandType.T1) {
+                    StringBuilder commandBuilder = new StringBuilder(" | grep ");
+                    for (int i = 2; i < commandArgs.length; i++) {
+                        commandBuilder.append(commandArgs[i]).append(" ");
+                        if (i < commandArgs.length - 1) {
+                            commandBuilder.append("| grep ");
+                        }
+                    }
+                    command = commandBuilder.toString();
+                }
+                // 根据配置文件中配置的日志路径进行自定义grep命令检索
+                if (commandType == CommandType.T2) {
+                    command = " | grep " + commandArgs[3];
+                }
+                // 执行自定义脚本命令
+                if (commandType == CommandType.T3) {
+                    command = commandArgs[3];
+                }
+
+                for (ServiceConfig config: configs) {
+                    if (serverMap.containsKey(config.getIp())) {
+                        Server server = serverMap.get(config.getIp());
+                        // 根据配置文件中配置的日志路径进行自定义grep命令检索
+                        if (commandType == CommandType.T1 || commandType == CommandType.T2) {
+                            executeLogQuery(server, config, command);
+                        }
+                        // 执行自定义脚本命令
+                        if (commandType == CommandType.T3) {
+                            executeBashCommand(server, config, command);
+                        }
+                    }
                 }
             } catch (Throwable throwable) {
+                if (logger.isErrorEnabled()) {
+                    logger.error("main线程处理异常", throwable);
+                }
                 throwable.printStackTrace();
             } finally {
                 inputLine = null;
@@ -125,22 +182,48 @@ public class Main {
         }
     }
 
-    private static void doLogQuery(SSHRequest r, String commandSuffix) {
-        String[] commands = r.getCommandArr();
-        String[] newCommands = new String[commands.length];
-        for (int i = 0; i < commands.length; i++) {
-            newCommands[i] = "cat " + commands[i] + commandSuffix;
+    private static void executeLogQuery(Server server, ServiceConfig config, String commandSuffix) {
+        List<String> logPaths = config.getLogPaths();
+        String[] commands = new String[logPaths.size()];
+        for (int i = 0, size = logPaths.size(); i < size; i++) {
+            commands[i] = "cat " + logPaths.get(i) + commandSuffix;
         }
-        SSHRequest sshRequest = new SSHRequest(r.getRemoteHost(), r.getUsername(), r.getPassword(), newCommands);
+        SSHRequest sshRequest = new SSHRequest(server.getIp(), server.getUsername(), server.getPassword(), commands);
         List<SSHResponse> sshResponseList = SSHExecutor.execMultiCommand(sshRequest);
         for (SSHResponse sshResponse: sshResponseList) {
-            System.out.println("START ===================================================");
+            System.out.println("BGN ===================================================");
             System.out.println(String.format("%s -> %s", sshResponse.getRemoteHost(), sshResponse.getCommand()));
             System.out.println("日志查询是否成功? " + sshResponse.isSuccess());
             System.out.println("日志查询返回结果: " + sshResponse.getOutputContent());
             System.out.println("日志查询返回异常: " + sshResponse.getErrorContent());
-            System.out.println("FIN =====================================================");
+            System.out.println("FIN ===================================================");
         }
+    }
+
+    private static void executeBashCommand(Server server, ServiceConfig config, String command) {
+        SSHRequest sshRequest = new SSHRequest(server.getIp(), server.getPort(), server.getUsername(), server.getPassword(), command);
+        SSHResponse sshResponse = SSHExecutor.execCommand(sshRequest);
+        System.out.println("BGN ===================================================");
+        System.out.println(String.format("%s -> %s", sshResponse.getRemoteHost(), sshResponse.getCommand()));
+        System.out.println("命令执行是否成功? " + sshResponse.isSuccess());
+        System.out.println("命令执行返回结果: " + sshResponse.getOutputContent());
+        System.out.println("命令执行返回异常: " + sshResponse.getErrorContent());
+        System.out.println("FIN ===================================================");
+    }
+
+    private static AllConfig loadConfig(String[] args) {
+        String configServerPath = System.getProperty("config.server");
+        if (StringUtils.isNotEmpty(configServerPath)) {
+            if (logger.isInfoEnabled()) {
+                logger.info("从配置服务[{}]获取配置信息", configServerPath);
+            }
+            return AllConfig.resolveFromConfigServer(configServerPath);
+        }
+        String configFilePath = System.getProperty("user.dir") + File.separator + "config.json";
+        if (logger.isInfoEnabled()) {
+            logger.info("从本地[{}]获取配置信息", configFilePath);
+        }
+        return AllConfig.resolveFromFile(new File(configFilePath));
     }
 
 }

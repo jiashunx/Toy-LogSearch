@@ -103,7 +103,8 @@
 
     <!-- 根logger，将appender-ref添加到根logger -->
     <root level="${log.root.level:-INFO}">
-        <appender-ref ref="STDOUT"/>
+        <!--日志不输出到控制台-->
+        <!--<appender-ref ref="STDOUT"/>-->
         <appender-ref ref="FILE-DEBUG"/>
         <appender-ref ref="FILE-INFO"/>
         <appender-ref ref="FILE-ERROR"/>

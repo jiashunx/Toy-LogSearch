@@ -1,7 +1,6 @@
 package io.github.jiashunx.toy.LogSearch.model;
 
 import com.alibaba.fastjson.JSON;
-import io.github.jiashunx.masker.rest.framework.util.StringUtils;
 import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -9,6 +8,10 @@ import org.slf4j.LoggerFactory;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
@@ -41,6 +44,23 @@ public class AllConfig {
         this.services = services;
     }
 
+    public static AllConfig resolveFromConfigServer(String configServerPath) {
+        String body = null;
+        try {
+            HttpClient httpClient = HttpClient.newHttpClient();
+            HttpRequest httpRequest = HttpRequest.newBuilder().uri(URI.create(configServerPath + "/config.json")).GET().build();
+            body = httpClient.send(httpRequest, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8)).body();
+        } catch (Throwable throwable) {
+            if (logger.isErrorEnabled()) {
+                logger.error("从配置服务[{}]获取配置信息失败", configServerPath, throwable);
+            }
+        }
+        if (logger.isInfoEnabled()) {
+            logger.info("从配置服务[{}]获取配置信息: {}", configServerPath, body);
+        }
+        return resolveFromContent(body);
+    }
+
     public static AllConfig resolveFromFile(File jsonFile) {
         try (FileInputStream inputStream = new FileInputStream(jsonFile.getAbsolutePath());
              ByteArrayOutputStream outputStream = new ByteArrayOutputStream();) {
@@ -57,7 +77,9 @@ public class AllConfig {
 
     public static AllConfig resolveFromContent(String json) {
         try {
-            return JSON.parseObject(json, AllConfig.class);
+            AllConfig allConfig = JSON.parseObject(json, AllConfig.class);
+            allConfig.verifyBeanInfo();
+            return allConfig;
         } catch (Throwable throwable) {
             if (logger.isErrorEnabled()) {
                 logger.error("从json反序列化配置对象异常", throwable);
