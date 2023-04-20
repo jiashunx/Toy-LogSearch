@@ -1,6 +1,9 @@
 package io.github.jiashunx.toy.LogSearch;
 
+import com.alibaba.fastjson.JSON;
 import io.github.jiashunx.masker.rest.framework.MRestServer;
+import io.github.jiashunx.masker.rest.framework.util.FileUtils;
+import io.github.jiashunx.masker.rest.framework.util.IOUtils;
 import io.github.jiashunx.masker.rest.framework.util.StringUtils;
 import io.github.jiashunx.tools.jsch.SSHExecutor;
 import io.github.jiashunx.tools.jsch.SSHRequest;
@@ -15,6 +18,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -66,7 +71,6 @@ public class Main {
                 System.out.print("请输入==> ");
                 // inputLine = new String(scanner.nextLine().getBytes("GBK"), "UTF-8");
                 inputLine = scanner.nextLine();
-                System.out.println("录入参数==> " + inputLine);
 
                 CommandType commandType = CommandHelper.getCommandType(inputLine);
                 if (commandType == null) {
@@ -194,8 +198,11 @@ public class Main {
             System.out.println("BGN ===================================================");
             System.out.println(String.format("%s -> %s", sshResponse.getRemoteHost(), sshResponse.getCommand()));
             System.out.println("日志查询是否成功? " + sshResponse.isSuccess());
-            System.out.println("日志查询返回结果: " + sshResponse.getOutputContent());
-            System.out.println("日志查询返回异常: " + sshResponse.getErrorContent());
+            if (sshResponse.isSuccess()) {
+                System.out.println("日志查询返回结果: \n" + sshResponse.getOutputContent());
+            } else {
+                System.out.println("日志查询返回异常: \n" + sshResponse.getErrorContent());
+            }
             System.out.println("FIN ===================================================");
         }
     }
@@ -206,8 +213,11 @@ public class Main {
         System.out.println("BGN ===================================================");
         System.out.println(String.format("%s -> %s", sshResponse.getRemoteHost(), sshResponse.getCommand()));
         System.out.println("命令执行是否成功? " + sshResponse.isSuccess());
-        System.out.println("命令执行返回结果: " + sshResponse.getOutputContent());
-        System.out.println("命令执行返回异常: " + sshResponse.getErrorContent());
+        if (sshResponse.isSuccess()) {
+            System.out.println("命令执行返回结果: \n" + sshResponse.getOutputContent());
+        } else {
+            System.out.println("命令执行返回异常: \n" + sshResponse.getErrorContent());
+        }
         System.out.println("FIN ===================================================");
     }
 
@@ -217,7 +227,24 @@ public class Main {
             if (logger.isInfoEnabled()) {
                 logger.info("从配置服务[{}]获取配置信息", configServerPath);
             }
-            return AllConfig.resolveFromConfigServer(configServerPath);
+            AllConfig allConfig = AllConfig.resolveFromConfigServer(configServerPath);
+            if (allConfig != null) {
+                try {
+                    File tmpFile = FileUtils.newFile(String.format("%sconfig%s.json"
+                            , System.getProperty("user.dir") + File.separator + "config" + File.separator
+                            , new SimpleDateFormat("yyyyMMddHHmmssSSS").format(new Date())));
+                    String json = JSON.toJSONString(allConfig, true);
+                    IOUtils.write(json, tmpFile);
+                    if (logger.isInfoEnabled()) {
+                        logger.info("从配置服务[{}]获取配置信息持久化到配置文件: {}", configServerPath, tmpFile.getAbsolutePath());
+                    }
+                } catch (Throwable throwable) {
+                    if (logger.isErrorEnabled()) {
+                        logger.error("从配置服务[{}]获取配置信息持久化到配置文件失败", configServerPath, throwable);
+                    }
+                }
+            }
+            return allConfig;
         }
         String configFilePath = System.getProperty("user.dir") + File.separator + "config.json";
         if (logger.isInfoEnabled()) {
