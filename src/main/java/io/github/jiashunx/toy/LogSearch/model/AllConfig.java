@@ -97,7 +97,7 @@ public class AllConfig {
         Objects.requireNonNull(services, "services can't be null");
         for (Service service: services) {
             Objects.requireNonNull(service.getEnv(), "service env can't be null");
-            Objects.requireNonNull(service.getEnv(), "service env service can't be null");
+            Objects.requireNonNull(service.getService(), "service env service can't be null");
             Objects.requireNonNull(service.getConfigs(), "service configs can't be null");
             for (ServiceConfig config: service.getConfigs()) {
                 Objects.requireNonNull(config.getIp(), "service config ip can't be null");
