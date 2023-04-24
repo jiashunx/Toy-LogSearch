@@ -1,0 +1,70 @@
+{
+  "servers": [
+    {
+      "ip": "192.168.138.1",
+      "port": 22,
+      "username": "jiashunx",
+      "password": "1234.abcd"
+    },
+    {
+      "ip": "192.168.138.1",
+      "port": 22,
+      "username": "jiashunx",
+      "password": "1234.abcd"
+    }
+  ],
+  "services": [
+    {
+      "env": "sit2",
+      "service": "newcore",
+      "configs": [
+        {
+          "ip": "192.168.138.1",
+          "logPaths": [
+            "/app/log/20*/file*",
+            "/app/log/log.txt"
+          ]
+        }
+      ]
+    },
+    {
+      "env": "sit2",
+      "service": "print",
+      "configs": [
+        {
+          "ip": "192.168.138.1",
+          "logPaths": [
+            "/app/log/20*/file*",
+            "/app/log/log.txt"
+          ]
+        }
+      ]
+    },
+    {
+      "env": "t3",
+      "service": "newcore",
+      "configs": [
+        {
+          "ip": "192.168.138.1",
+          "logPaths": [
+            "/app/log/20*/file*",
+            "/app/log/log.txt"
+          ]
+        }
+      ]
+    },
+    {
+      "env": "t3",
+      "service": "print",
+      "configs": [
+        {
+          "ip": "192.168.138.1",
+          "logPaths": [
+            "/app/log/20*/file*",
+            "/app/log/log.txt"
+          ]
+        }
+      ]
+    }
+  ]
+}
