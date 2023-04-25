@@ -3,7 +3,10 @@ package config
 import (
     "encoding/json"
     "errors"
+    "fmt"
     "os"
+    "strings"
+    "time"
 )
 
 // 配置模型
@@ -70,6 +73,10 @@ func (c *Config) verify() error {
     return nil
 }
 
+func (c *Config) toJson() ([]byte, error) {
+    return json.MarshalIndent(c, "", "  ")
+}
+
 // 加载配置
 func LoadConfig() (*Config, error) {
     args := os.Args
@@ -86,7 +93,28 @@ func LoadConfig() (*Config, error) {
 
 // 配置信息存储到本地
 func store(config *Config) (string, error) {
-    return "", nil
+    _ = os.MkdirAll("config", os.ModePerm)
+    timestamp := time.Now().Format("2006-01-02 15:04:05")
+    timestamp = strings.ReplaceAll(timestamp, "-", "")
+    timestamp = strings.ReplaceAll(timestamp, ":", "")
+    timestamp = strings.ReplaceAll(timestamp, " ", "")
+    fileName := fmt.Sprintf("config%s.json", timestamp)
+    file, err := os.Create(fileName)
+    if err != nil {
+        fmt.Println(fmt.Sprintf("create file [%s] failed, error: %v", fileName, err))
+        return "", err
+    }
+    bytes, err := config.toJson()
+    if err != nil {
+        fmt.Println(fmt.Sprintf("config marshall failed, error: %v", err))
+        return "", err
+    }
+    _, err = file.Write(bytes)
+    if err != nil {
+        fmt.Println(fmt.Sprintf("write config to file [%s] failed, error: %v", fileName, err))
+        return "", err
+    }
+    return fileName, nil
 }
 
 // 从远程配置服务器同步配置
