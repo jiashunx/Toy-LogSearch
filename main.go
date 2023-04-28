@@ -2,9 +2,11 @@ package main
 
 import (
     cfg "Toy-LogSearch/config"
+    log "Toy-LogSearch/log"
     "Toy-LogSearch/ssh"
     "encoding/json"
     "fmt"
+    "go.uber.org/zap"
 )
 
 func main() {
@@ -17,19 +19,19 @@ func main() {
     }
     resps := ssh.ExecuteCommand(request)
     for _, response := range resps {
-        fmt.Println(fmt.Sprintf("SSH Test, Command: %s", response.Command))
-        fmt.Println(fmt.Sprintf("SSH Test, Success: %v", response.Success))
+        log.Info(fmt.Sprintf("SSH Test, Command: %s", response.Command))
+        log.Info(fmt.Sprintf("SSH Test, Success: %v", response.Success))
         if response.Success {
-            fmt.Println(fmt.Sprintf("SSH Test, Output: \n%s", response.OutputContent))
+            log.Info(fmt.Sprintf("SSH Test, Output: \n%s", response.OutputContent))
         } else {
-            fmt.Println(fmt.Sprintf("SSH Test, Error: \n%s", response.ErrorContent))
+            log.Info(fmt.Sprintf("SSH Test, Error: \n%s", response.ErrorContent))
         }
     }
     config, err := cfg.LoadConfig()
     if err != nil {
-        fmt.Println(fmt.Sprintf("load config failed, error: %v", err))
+        log.Info(fmt.Sprintf("load config failed, error: %v", err))
         return
     }
     bs, err := json.Marshal(config)
-    fmt.Println("Config: ", string(bs))
+    log.Info(fmt.Sprintf("Config: %s", string(bs)), zap.String("k", "value"))
 }

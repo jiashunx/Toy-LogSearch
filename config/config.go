@@ -7,6 +7,7 @@ import (
     "os"
     "strings"
     "time"
+    "Toy-LogSearch/log"
 )
 
 // 配置模型
@@ -98,20 +99,21 @@ func store(config *Config) (string, error) {
     timestamp = strings.ReplaceAll(timestamp, "-", "")
     timestamp = strings.ReplaceAll(timestamp, ":", "")
     timestamp = strings.ReplaceAll(timestamp, " ", "")
-    fileName := fmt.Sprintf("config%s.json", timestamp)
+    _ = os.MkdirAll("./config", 0777)
+    fileName := fmt.Sprintf("./config/config%s.json", timestamp)
     file, err := os.Create(fileName)
     if err != nil {
-        fmt.Println(fmt.Sprintf("create file [%s] failed, error: %v", fileName, err))
+        log.Error(fmt.Sprintf("create file [%s] failed, error: %v", fileName, err))
         return "", err
     }
     bytes, err := config.toJson()
     if err != nil {
-        fmt.Println(fmt.Sprintf("config marshall failed, error: %v", err))
+        log.Error(fmt.Sprintf("config marshall failed, error: %v", err))
         return "", err
     }
     _, err = file.Write(bytes)
     if err != nil {
-        fmt.Println(fmt.Sprintf("write config to file [%s] failed, error: %v", fileName, err))
+        log.Error(fmt.Sprintf("write config to file [%s] failed, error: %v", fileName, err))
         return "", err
     }
     return fileName, nil
