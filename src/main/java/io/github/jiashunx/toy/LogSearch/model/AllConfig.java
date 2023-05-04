@@ -44,19 +44,19 @@ public class AllConfig {
         this.services = services;
     }
 
-    public static AllConfig resolveFromConfigServer(String configServerPath) {
+    public static AllConfig resolveFromConfigServer(String cfgSrvPath) {
         String body = null;
         try {
             HttpClient httpClient = HttpClient.newHttpClient();
-            HttpRequest httpRequest = HttpRequest.newBuilder().uri(URI.create(configServerPath + "/config.json")).GET().build();
+            HttpRequest httpRequest = HttpRequest.newBuilder().uri(URI.create(cfgSrvPath + "/config.json")).GET().build();
             body = httpClient.send(httpRequest, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8)).body();
         } catch (Throwable throwable) {
             if (logger.isErrorEnabled()) {
-                logger.error("从配置服务[{}]获取配置信息失败", configServerPath, throwable);
+                logger.error("从配置服务[{}]获取配置信息失败", cfgSrvPath, throwable);
             }
         }
         if (logger.isInfoEnabled()) {
-            logger.info("从配置服务[{}]获取配置信息: {}", configServerPath, body);
+            logger.info("从配置服务[{}]获取配置信息: {}", cfgSrvPath, body);
         }
         return resolveFromContent(body);
     }

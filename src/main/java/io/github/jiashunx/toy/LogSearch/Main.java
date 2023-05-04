@@ -38,8 +38,7 @@ public class Main {
     public static void main(String[] args) throws Throwable {
         AtomicReference<AllConfig> allConfigRef = new AtomicReference<>(loadConfig(args));
         if (allConfigRef.get() == null) {
-            System.out.println("配置文件解析异常");
-            return;
+            System.out.println("配置信息解析异常");
         }
         new Thread(() -> {
             String port = System.getProperty("server.port");
@@ -57,6 +56,10 @@ public class Main {
                     response.write(HttpResponseStatus.NOT_FOUND);
                 })
                 .get("/config.json", (request, response) -> {
+                    if (allConfigRef.get() == null) {
+                        response.write(HttpResponseStatus.NOT_FOUND);
+                        return;
+                    }
                     response.write(allConfigRef.get());
                 })
                 .getRestServer()
@@ -64,7 +67,9 @@ public class Main {
         }, "config-server").start();
         Scanner scanner = new Scanner(System.in);
         String inputLine = null;
-        allConfigRef.get().printConfigInfo();
+        if (allConfigRef.get() != null) {
+            allConfigRef.get().printConfigInfo();
+        }
         CommandHelper.printHelpInfo();
         while (true) {
             try {
@@ -76,7 +81,6 @@ public class Main {
                 if (commandType == null) {
                     System.out.println("录入参数有误，无法匹配命令，请重新输入！");
                     CommandHelper.printHelpInfo();
-                    inputLine = null;
                     continue;
                 }
 
@@ -84,13 +88,11 @@ public class Main {
                 if (commandArgs == null) {
                     System.out.println("录入参数解析失败，请重新输入！");
                     CommandHelper.printHelpInfo();
-                    inputLine = null;
                     continue;
                 }
 
                 if (commandType == CommandType.HELP) {
                     CommandHelper.printHelpInfo();
-                    inputLine = null;
                     continue;
                 }
 
@@ -106,15 +108,21 @@ public class Main {
                     AllConfig allConfig = loadConfig(args);
                     if (allConfig == null) {
                         System.out.println("重新加载配置文件，获取配置信息为null，不更新配置信息！");
-                        allConfigRef.get().printConfigInfo();
+                        if (allConfigRef.get() != null) {
+                            allConfigRef.get().printConfigInfo();
+                        }
                         CommandHelper.printHelpInfo();
-                        inputLine = null;
                         continue;
                     }
                     allConfigRef.set(allConfig);
                     allConfigRef.get().printConfigInfo();
                     CommandHelper.printHelpInfo();
-                    inputLine = null;
+                    continue;
+                }
+
+                if (allConfigRef.get() == null) {
+                    System.out.println("当前配置对象为空，请同步配置后执行相应命令！");
+                    CommandHelper.printHelpInfo();
                     continue;
                 }
 
@@ -124,7 +132,6 @@ public class Main {
                 if (configs.isEmpty()) {
                     System.out.println(String.format("未找到env[%s], service[%s] 对应服务配置，请重新输入！", env, service));
                     CommandHelper.printHelpInfo();
-                    inputLine = null;
                     continue;
                 }
                 Map<String, Server> serverMap = new HashMap<>();
@@ -137,7 +144,6 @@ public class Main {
                 if (serverMap.isEmpty()) {
                     System.out.println(String.format("未找到env[%s], service[%s] 对应服务器配置，请重新输入！", env, service));
                     CommandHelper.printHelpInfo();
-                    inputLine = null;
                     continue;
                 }
 
@@ -180,8 +186,6 @@ public class Main {
                     logger.error("main线程处理异常", throwable);
                 }
                 throwable.printStackTrace();
-            } finally {
-                inputLine = null;
             }
         }
     }
@@ -222,12 +226,13 @@ public class Main {
     }
 
     private static AllConfig loadConfig(String[] args) {
-        String configServerPath = System.getProperty("config.server");
-        if (StringUtils.isNotEmpty(configServerPath)) {
+        String cfgSrvPath = System.getProperty("config.server");
+        if (StringUtils.isNotEmpty(cfgSrvPath)) {
             if (logger.isInfoEnabled()) {
-                logger.info("从配置服务[{}]获取配置信息", configServerPath);
+                logger.info("从配置服务[{}]获取配置信息", cfgSrvPath);
             }
-            AllConfig allConfig = AllConfig.resolveFromConfigServer(configServerPath);
+            System.out.println(String.format("从配置服务[%s]获取配置信息", cfgSrvPath));
+            AllConfig allConfig = AllConfig.resolveFromConfigServer(cfgSrvPath);
             if (allConfig != null) {
                 try {
                     File tmpFile = FileUtils.newFile(String.format("%sconfig%s.json"
@@ -236,21 +241,22 @@ public class Main {
                     String json = JSON.toJSONString(allConfig, true);
                     IOUtils.write(json, tmpFile);
                     if (logger.isInfoEnabled()) {
-                        logger.info("从配置服务[{}]获取配置信息持久化到配置文件: {}", configServerPath, tmpFile.getAbsolutePath());
+                        logger.info("从配置服务[{}]获取配置信息持久化到配置文件: {}", cfgSrvPath, tmpFile.getAbsolutePath());
                     }
                 } catch (Throwable throwable) {
                     if (logger.isErrorEnabled()) {
-                        logger.error("从配置服务[{}]获取配置信息持久化到配置文件失败", configServerPath, throwable);
+                        logger.error("从配置服务[{}]获取配置信息持久化到配置文件失败", cfgSrvPath, throwable);
                     }
                 }
             }
             return allConfig;
         }
-        String configFilePath = System.getProperty("user.dir") + File.separator + "config.json";
+        String cfgPath = System.getProperty("user.dir") + File.separator + "config.json";
         if (logger.isInfoEnabled()) {
-            logger.info("从本地[{}]获取配置信息", configFilePath);
+            logger.info("从本地[{}]获取配置信息", cfgPath);
         }
-        return AllConfig.resolveFromFile(new File(configFilePath));
+        System.out.println(String.format("从本地[%s]获取配置信息", cfgPath));
+        return AllConfig.resolveFromFile(new File(cfgPath));
     }
 
 }
