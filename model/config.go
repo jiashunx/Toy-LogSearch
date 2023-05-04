@@ -61,7 +61,7 @@ func (c *Config) PrintConfigInfo() {
     }
     for _, service := range c.Services {
         for _, sc := range service.Configs {
-            _, _ = fmt.Printf("env: %s, service: %s, ip: %s, logPaths: %v", service.Env, service.Service, sc.RemoteHost, sc.LogPaths)
+            _, _ = fmt.Printf("env: %s, service: %s, ip: %s, logPaths: %v\n", service.Env, service.Service, sc.RemoteHost, sc.LogPaths)
         }
     }
 }

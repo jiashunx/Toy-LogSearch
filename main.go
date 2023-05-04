@@ -4,34 +4,183 @@ import (
     "Toy-LogSearch/log"
     "Toy-LogSearch/model"
     "Toy-LogSearch/ssh"
-    "encoding/json"
+    "Toy-LogSearch/utils"
+    "bufio"
     "fmt"
     "go.uber.org/zap"
+    "os"
+    "strings"
 )
 
 func main() {
-    request := &ssh.SSHRequest{
-        RemoteHost: "192.168.183.1",
-        Port: 22,
-        Username: "jiashunx",
-        Password: "1234.abcd",
-        Commands: []string { "/bin/ps", "cat /etc/profileinfo", "/bin/ps -ef" },
-    }
-    resps := ssh.ExecuteCommand(request)
-    for _, response := range resps {
-        log.Info(fmt.Sprintf("SSH Test, Command: %s", response.Command))
-        log.Info(fmt.Sprintf("SSH Test, Success: %v", response.Success))
-        if response.Success {
-            log.Info(fmt.Sprintf("SSH Test, Output: \n%s", response.OutputContent))
-        } else {
-            log.Info(fmt.Sprintf("SSH Test, Error: \n%s", response.ErrorContent))
-        }
-    }
+    args := os.Args
+    log.Info(fmt.Sprintf("程序启动参数: %v", args))
     config, err := model.LoadConfig()
     if err != nil {
-        log.Info(fmt.Sprintf("load config failed, error: %v", err))
-        return
+        fmt.Println("配置文件解析异常")
+        os.Exit(1)
     }
-    bs, err := json.Marshal(config)
-    log.Info(fmt.Sprintf("Config: %s", string(bs)), zap.String("k", "value"))
+    config.PrintConfigInfo()
+    utils.PrintHelpInfo()
+    reader := bufio.NewReader(os.Stdin)
+    text := ""
+    for {
+        fmt.Print("请输入==> ")
+        bytes, _, err := reader.ReadLine()
+        if err != nil {
+            log.Error("Read Content From Console Failed", zap.Error(err))
+            fmt.Println("录入参数处理异常，无法匹配命令，请重新输入！")
+            utils.PrintHelpInfo()
+            continue
+        }
+
+        text = string(bytes)
+        command := utils.GetCommand(text)
+        if command == nil {
+            fmt.Println("录入参数有误，无法匹配命令，请重新输入！")
+            utils.PrintHelpInfo()
+            continue
+        }
+
+        cmdArgs := utils.GetCommandArgs(text)
+        if len(cmdArgs) == 0 {
+            fmt.Println("录入参数解析失败，请重新输入！")
+            utils.PrintHelpInfo()
+            continue
+        }
+
+        if command == utils.CHelp {
+            utils.PrintHelpInfo()
+            continue
+        }
+
+        if command == utils.CExit || command == utils.CQuit {
+            log.Info("结束main线程")
+            os.Exit(0)
+        }
+
+        if command == utils.CReload {
+            tmpConfig, err := model.LoadConfig()
+            if err != nil {
+                fmt.Println("重新加载配置文件，获取配置信息为null，不更新配置信息！")
+                config.PrintConfigInfo()
+                utils.PrintHelpInfo()
+                continue
+            }
+            config = tmpConfig
+            config.PrintConfigInfo()
+            utils.PrintHelpInfo()
+            continue
+        }
+
+        env := cmdArgs[0]
+        service := cmdArgs[1]
+        scs := config.GetEnvServiceConfigs(env, service)
+        if (len(scs) == 0) {
+            fmt.Println(fmt.Sprintf("未找到env[%s], service[%s] 对应服务配置，请重新输入！", env, service))
+            utils.PrintHelpInfo()
+            continue
+        }
+        serverMap := make(map[string]*model.Server)
+        for _, sc := range scs {
+            server := config.GetServerByIp(sc.RemoteHost)
+            if server != nil {
+                serverMap[sc.RemoteHost] = server
+            }
+        }
+        if len(serverMap) == 0 {
+            fmt.Println(fmt.Sprintf("未找到env[%s], service[%s] 对应服务器配置，请重新输入！", env, service))
+            utils.PrintHelpInfo()
+            continue
+        }
+
+        cmd := ""
+        // 根据配置文件中配置的日志路径进行检索
+        if command == utils.CT1 {
+            var cmdBuilder strings.Builder
+            cmdBuilder.WriteString(" | grep ")
+            for i, l := 2, len(cmdArgs); i < l; i++ {
+                cmdBuilder.WriteString(cmdArgs[i])
+                cmdBuilder.WriteString(" ")
+                if i < l - 1 {
+                    cmdBuilder.WriteString("| grep ")
+                }
+            }
+            cmd = cmdBuilder.String()
+        }
+        // 根据配置文件中配置的日志路径进行自定义grep命令检索
+        if command == utils.CT2 {
+            cmd = " | grep " + cmdArgs[3]
+        }
+        // 执行自定义脚本命令
+        if command == utils.CT3 {
+            cmd = cmdArgs[3]
+        }
+
+        for _, sc := range scs {
+            if server, ok := serverMap[sc.RemoteHost]; ok {
+                // 根据配置文件中配置的日志路径进行自定义grep命令检索
+                if command == utils.CT1 || command == utils.CT2 {
+                    executeLogQuery(server, &sc, cmd)
+                }
+                // 执行自定义脚本命令
+                if command == utils.CT3 {
+                    executeBashCommand(server, &sc, cmd)
+                }
+            }
+        }
+    }
+}
+
+func executeLogQuery(server *model.Server, config *model.ServiceConfig, commandSuffix string) {
+    logPaths := config.LogPaths
+    commands := make([]string, len(logPaths))
+    for i, logPath := range logPaths {
+        commands[i] = "cat " + logPath + commandSuffix
+    }
+    sshRequest := &ssh.SSHRequest{
+        RemoteHost: server.RemoteHost,
+        Port: server.Port,
+        Username: server.Username,
+        Password: server.Password,
+        Commands: commands,
+    }
+    sshResponses := ssh.ExecuteCommand(sshRequest)
+    for _, sshResponse := range sshResponses {
+        fmt.Println("BGN ===================================================")
+        fmt.Println(fmt.Sprintf("%s -> %s", sshResponse.RemoteHost, sshResponse.Command))
+        fmt.Println(fmt.Sprintf("日志查询是否成功? %t", sshResponse.Success))
+        if sshResponse.Success {
+            fmt.Println("日志查询返回结果: ")
+            fmt.Println(sshResponse.OutputContent)
+        } else {
+            fmt.Println("日志查询返回异常: ")
+            fmt.Println(sshResponse.ErrorContent)
+        }
+        fmt.Println("FIN ===================================================")
+    }
+}
+
+func executeBashCommand(server *model.Server, config *model.ServiceConfig, command string) {
+    sshRequest := &ssh.SSHRequest{
+        RemoteHost: server.RemoteHost,
+        Port: server.Port,
+        Username: server.Username,
+        Password: server.Password,
+        Commands: []string{ command },
+    }
+    sshResponses := ssh.ExecuteCommand(sshRequest)
+    for _, sshResponse := range sshResponses {
+        fmt.Println("BGN ===================================================")
+        fmt.Println(fmt.Sprintf("%s -> %s", sshResponse.RemoteHost, sshResponse.Command))
+        fmt.Println(fmt.Sprintf("命令执行是否成功? %t", sshResponse.Success))
+        if sshResponse.Success {
+            fmt.Println("命令执行返回结果: ")
+            fmt.Println(sshResponse.OutputContent)
+        } else {
+            fmt.Println("命令执行返回异常: ")
+            fmt.Println(sshResponse.ErrorContent)
+        }
+        fmt.Println("FIN ===================================================")
+    }
 }
