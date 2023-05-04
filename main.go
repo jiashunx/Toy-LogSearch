@@ -3,6 +3,7 @@ package main
 import (
     "Toy-LogSearch/log"
     "Toy-LogSearch/model"
+    "Toy-LogSearch/server"
     "Toy-LogSearch/ssh"
     "Toy-LogSearch/utils"
     "bufio"
@@ -10,12 +11,27 @@ import (
     "go.uber.org/zap"
     "os"
     "strings"
+    "time"
 )
 
+// go run main.go :38889 http://127.0.0.1:38888
 func main() {
     args := os.Args
     log.Info(fmt.Sprintf("程序启动参数: %v", args))
+    address := ":38888"
+    if len(args) >= 2 {
+        address = args[1]
+    }
+    s := &server.EchoServer{
+        Config: nil,
+        Address: address,
+    }
+    go func() {
+        s.StartServer()
+    }()
+    time.Sleep(time.Second * 3)
     config, err := model.LoadConfig()
+    s.Config = config
     if err != nil {
         fmt.Println("配置信息解析异常")
     }
@@ -71,6 +87,8 @@ func main() {
                 continue
             }
             config = tmpConfig
+            // 更新配置信息
+            s.Config = config
             config.PrintConfigInfo()
             utils.PrintHelpInfo()
             continue
