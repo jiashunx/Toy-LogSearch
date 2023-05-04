@@ -1,6 +1,7 @@
 package ssh
 
 import (
+    "Toy-LogSearch/log"
     "bytes"
     "fmt"
     "golang.org/x/crypto/ssh"
@@ -50,12 +51,18 @@ func ExecuteCommand(request *SSHRequest) []*SSHResponse {
 }
 
 func doExecute(request *SSHRequest, response *SSHResponse) {
-    config := &ssh.ClientConfig{
+    defer func() {
+        log.Info(fmt.Sprintf("SSH命令[%s:%d]-[%s]是否执行成功: %t", request.RemoteHost, request.Port, response.Command, response.Success))
+        if !response.Success {
+            log.Error(fmt.Sprintf("SSH命令[%s:%d]-[%s]错误响应: %s", request.RemoteHost, request.Port, response.Command, response.ErrorContent))
+        }
+    }()
+    clientConfig := &ssh.ClientConfig{
         User: request.Username,
         Auth: []ssh.AuthMethod{ssh.Password(request.Password)},
         HostKeyCallback: ssh.InsecureIgnoreHostKey(),
     }
-    client, err := ssh.Dial("tcp", fmt.Sprintf("%s:%d", request.RemoteHost, request.Port), config)
+    client, err := ssh.Dial("tcp", fmt.Sprintf("%s:%d", request.RemoteHost, request.Port), clientConfig)
     if err != nil {
         response.ErrorContent = fmt.Sprintf("Create SSH Client Failed, Error: %v", err)
         return

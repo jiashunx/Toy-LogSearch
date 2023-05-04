@@ -4,6 +4,8 @@ import (
     "encoding/json"
     "errors"
     "fmt"
+    "go.uber.org/zap"
+    "net/http"
     "os"
     "strings"
     "time"
@@ -12,23 +14,59 @@ import (
 
 // 配置模型
 type Config struct {
-    Servers [] struct {
-        RemoteHost  string  `json:"ip"`
-        Port        uint8   `json:"port"`
-        Username    string  `json:"username"`
-        Password    string  `json:"password"`
-    }                       `json:"servers"`
-    Services [] struct {
-        Env         string  `json:"env"`
-        Service     string  `json:"service"`
-        Configs []struct{
-            RemoteHost  string      `json:"ip"`
-            LogPaths    []string    `json:"logPaths"`
-        }                   `json:"configs"`
-    }                       `json:"services"`
+    Servers     []Server        `json:"servers"`
+    Services    []Service       `json:"services"`
 }
 
-func (c *Config) verify() error {
+type Server struct {
+    RemoteHost  string          `json:"ip"`
+    Port        uint8           `json:"port"`
+    Username    string          `json:"username"`
+    Password    string          `json:"password"`
+}
+
+type Service struct {
+    Env         string          `json:"env"`
+    Service     string          `json:"service"`
+    Configs     []ServiceConfig `json:"configs"`
+}
+
+type ServiceConfig struct {
+    RemoteHost  string          `json:"ip"`
+    LogPaths    []string        `json:"logPaths"`
+}
+
+func (c *Config) GetServerByIp(ip string) *Server {
+    for _, server := range c.Servers {
+        if ip != "" && ip == server.RemoteHost {
+            return &server
+        }
+    }
+    return nil
+}
+
+func (c *Config) GetEnvServiceConfigs(e, s string) []ServiceConfig {
+    sc := make([]ServiceConfig, 0)
+    for _, service := range c.Services {
+        if e != "" && e == service.Env && s != "" && s == service.Service {
+            sc = append(sc, service.Configs...)
+        }
+    }
+    return sc
+}
+
+func (c *Config) PrintConfigInfo() {
+    for _, server := range c.Servers {
+        _, _ = fmt.Printf("server: %s:%d@%s/%s\n", server.RemoteHost, server.Port, server.Username, server.Password)
+    }
+    for _, service := range c.Services {
+        for _, sc := range service.Configs {
+            _, _ = fmt.Printf("env: %s, service: %s, ip: %s, logPaths: %v", service.Env, service.Service, sc.RemoteHost, sc.LogPaths)
+        }
+    }
+}
+
+func (c *Config) verifyBeanInfo() error {
     if c == nil {
         return errors.New("config pointer can't be null")
     }
@@ -120,21 +158,42 @@ func store(config *Config) (string, error) {
 }
 
 // 从远程配置服务器同步配置
-func resolveFromConfigServer(configServerPath string) (*Config, error) {
-    return nil, nil
+func resolveFromConfigServer(cfgSrvPath string) (*Config, error) {
+    url := cfgSrvPath + "/config.json"
+    response, err := http.Get(cfgSrvPath + "/config.json")
+    if err != nil {
+        log.Error(fmt.Sprintf("从配置服务[%s]获取配置信息失败", url), zap.Error(err))
+        return nil, err
+    }
+    log.Info(fmt.Sprintf("从配置服务[%s]获取配置信息，响应码：%d", url, response.StatusCode))
+    bs := make([]byte, response.ContentLength)
+    n, err := response.Body.Read(bs)
+    if err != nil {
+        log.Error(fmt.Sprintf("从配置服务[%s]获取配置信息，读取响应失败", url), zap.Error(err))
+    }
+    content := string(bs[0:n])
+    log.Info(fmt.Sprintf("从配置服务[%s]获取配置信息：%s", url, content))
+    return resolveFromContent(bs[0:n])
 }
 
 // 从本地配置文件加载配置
 func resolveFromFile() (*Config, error) {
     bs, err := os.ReadFile("config.json")
     if err != nil {
+        log.Error("从config.json读取配置信息失败", zap.Error(err))
         return nil, err
     }
+    return resolveFromContent(bs)
+}
+
+func resolveFromContent(bs []byte) (*Config, error) {
     config := &Config{}
     if err := json.Unmarshal(bs, config); err != nil {
+        log.Error("从json反序列化配置对象异常", zap.Error(err))
         return nil, err
     }
-    if err := config.verify(); err != nil {
+    if err := config.verifyBeanInfo(); err != nil {
+        log.Error("从json反序列化配置对象属性校验失败", zap.Error(err))
         return nil, err
     }
     return config, nil
