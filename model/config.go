@@ -1,4 +1,4 @@
-package config
+package model
 
 import (
     "encoding/json"
@@ -14,8 +14,8 @@ import (
 
 // 配置模型
 type Config struct {
-    Servers     []Server        `json:"servers"`
-    Services    []Service       `json:"services"`
+    Servers     []Server  `json:"servers"`
+    Services    []Service `json:"services"`
 }
 
 type Server struct {

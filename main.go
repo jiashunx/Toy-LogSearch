@@ -1,8 +1,8 @@
 package main
 
 import (
-    "Toy-LogSearch/config"
     "Toy-LogSearch/log"
+    "Toy-LogSearch/model"
     "Toy-LogSearch/ssh"
     "encoding/json"
     "fmt"
@@ -27,11 +27,11 @@ func main() {
             log.Info(fmt.Sprintf("SSH Test, Error: \n%s", response.ErrorContent))
         }
     }
-    sshCfg, err := config.LoadConfig()
+    config, err := model.LoadConfig()
     if err != nil {
         log.Info(fmt.Sprintf("load config failed, error: %v", err))
         return
     }
-    bs, err := json.Marshal(sshCfg)
+    bs, err := json.Marshal(config)
     log.Info(fmt.Sprintf("Config: %s", string(bs)), zap.String("k", "value"))
 }
