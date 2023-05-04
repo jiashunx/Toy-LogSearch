@@ -192,7 +192,7 @@ public class Main {
         for (int i = 0, size = logPaths.size(); i < size; i++) {
             commands[i] = "cat " + logPaths.get(i) + commandSuffix;
         }
-        SSHRequest sshRequest = new SSHRequest(server.getIp(), server.getUsername(), server.getPassword(), commands);
+        SSHRequest sshRequest = new SSHRequest(server.getIp(), server.getPort(), server.getUsername(), server.getPassword(), commands);
         List<SSHResponse> sshResponseList = SSHExecutor.execMultiCommand(sshRequest);
         for (SSHResponse sshResponse: sshResponseList) {
             System.out.println("BGN ===================================================");
