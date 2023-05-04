@@ -159,6 +159,7 @@ func store(config *Config) (string, error) {
 
 // 从远程配置服务器同步配置
 func resolveFromConfigServer(cfgSrvPath string) (*Config, error) {
+    fmt.Println(fmt.Sprintf("从配置服务[%s]获取配置信息", cfgSrvPath));
     url := cfgSrvPath + "/config.json"
     response, err := http.Get(cfgSrvPath + "/config.json")
     if err != nil {
@@ -178,7 +179,9 @@ func resolveFromConfigServer(cfgSrvPath string) (*Config, error) {
 
 // 从本地配置文件加载配置
 func resolveFromFile() (*Config, error) {
-    bs, err := os.ReadFile("config.json")
+    cfgPath := "config.json"
+    fmt.Println(fmt.Sprintf("从本地[%s]获取配置信息", cfgPath));
+    bs, err := os.ReadFile(cfgPath)
     if err != nil {
         log.Error("从config.json读取配置信息失败", zap.Error(err))
         return nil, err

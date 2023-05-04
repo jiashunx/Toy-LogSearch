@@ -17,10 +17,11 @@ func main() {
     log.Info(fmt.Sprintf("程序启动参数: %v", args))
     config, err := model.LoadConfig()
     if err != nil {
-        fmt.Println("配置文件解析异常")
-        os.Exit(1)
+        fmt.Println("配置信息解析异常")
     }
-    config.PrintConfigInfo()
+    if config != nil {
+        config.PrintConfigInfo()
+    }
     utils.PrintHelpInfo()
     reader := bufio.NewReader(os.Stdin)
     text := ""
@@ -63,12 +64,20 @@ func main() {
             tmpConfig, err := model.LoadConfig()
             if err != nil {
                 fmt.Println("重新加载配置文件，获取配置信息为null，不更新配置信息！")
-                config.PrintConfigInfo()
+                if config != nil {
+                    config.PrintConfigInfo()
+                }
                 utils.PrintHelpInfo()
                 continue
             }
             config = tmpConfig
             config.PrintConfigInfo()
+            utils.PrintHelpInfo()
+            continue
+        }
+
+        if config == nil {
+            fmt.Println("当前配置对象为空，请同步配置后执行相应命令！")
             utils.PrintHelpInfo()
             continue
         }
