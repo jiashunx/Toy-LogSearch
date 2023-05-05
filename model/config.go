@@ -1,6 +1,7 @@
 package model
 
 import (
+    "Toy-LogSearch/env"
     "encoding/json"
     "errors"
     "fmt"
@@ -118,9 +119,8 @@ func (c *Config) toJson() ([]byte, error) {
 
 // 加载配置
 func LoadConfig() (*Config, error) {
-    args := os.Args
-    if len(args) >= 3 {
-        config, err := resolveFromConfigServer(args[2])
+    if env.GetCfgSrvPath() != "" {
+        config, err := resolveFromConfigServer(env.GetCfgSrvPath())
         if err != nil {
             return nil, err
         }

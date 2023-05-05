@@ -46,7 +46,7 @@ func PrintHelpInfo() {
     fmt.Println("  日志查询样例: sit2 newcore grep 2023-03-19 | grep 17\\:17\\:17 | grep 202304181703222101000066");
     fmt.Println("3.自定义脚本命令：[env] [service] bash [command1] [command2]...[commandN]（command可出现空格）");
     fmt.Println("  自定义脚本样例: sit2 newcore bash cat /log/print.log | grep 2023-03-19 | grep 17\\:17\\:17 | grep 202304181703222101000066");
-    fmt.Println("4.其他命令：help（输出帮助信息）、quit（退出进程）、exit（退出进程）、reload（更新配置）");
+    fmt.Println("4.其他命令：help（输出帮助信息）、reload（更新配置）、quit（退出进程）、exit（退出进程）");
 }
 
 func GetCommand(text string) *Command {

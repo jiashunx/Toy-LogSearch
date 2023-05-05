@@ -1,6 +1,7 @@
 package main
 
 import (
+    _ "Toy-LogSearch/env"
     "Toy-LogSearch/log"
     "Toy-LogSearch/model"
     "Toy-LogSearch/server"
@@ -16,27 +17,18 @@ import (
 
 // go run main.go :38889 http://127.0.0.1:38888
 func main() {
-    args := os.Args
-    log.Info(fmt.Sprintf("程序启动参数: %v", args))
-    address := ":38888"
-    if len(args) >= 2 {
-        address = args[1]
-    }
-    s := &server.EchoServer{
-        Config: nil,
-        Address: address,
-    }
+    s := &server.EchoServer{ConfigRef: nil}
     go func() {
         s.StartServer()
     }()
     time.Sleep(time.Second * 3)
-    config, err := model.LoadConfig()
-    s.Config = config
+    configRef, err := model.LoadConfig()
+    s.ConfigRef = configRef
     if err != nil {
         fmt.Println("配置信息解析异常")
     }
-    if config != nil {
-        config.PrintConfigInfo()
+    if configRef != nil {
+        configRef.PrintConfigInfo()
     }
     utils.PrintHelpInfo()
     reader := bufio.NewReader(os.Stdin)
@@ -80,21 +72,21 @@ func main() {
             tmpConfig, err := model.LoadConfig()
             if err != nil {
                 fmt.Println("重新加载配置文件，获取配置信息为null，不更新配置信息！")
-                if config != nil {
-                    config.PrintConfigInfo()
+                if configRef != nil {
+                    configRef.PrintConfigInfo()
                 }
                 utils.PrintHelpInfo()
                 continue
             }
-            config = tmpConfig
+            configRef = tmpConfig
             // 更新配置信息
-            s.Config = config
-            config.PrintConfigInfo()
+            s.ConfigRef = configRef
+            configRef.PrintConfigInfo()
             utils.PrintHelpInfo()
             continue
         }
 
-        if config == nil {
+        if configRef == nil {
             fmt.Println("当前配置对象为空，请同步配置后执行相应命令！")
             utils.PrintHelpInfo()
             continue
@@ -102,7 +94,7 @@ func main() {
 
         env := cmdArgs[0]
         service := cmdArgs[1]
-        scs := config.GetEnvServiceConfigs(env, service)
+        scs := configRef.GetEnvServiceConfigs(env, service)
         if (len(scs) == 0) {
             fmt.Println(fmt.Sprintf("未找到env[%s], service[%s] 对应服务配置，请重新输入！", env, service))
             utils.PrintHelpInfo()
@@ -110,7 +102,7 @@ func main() {
         }
         serverMap := make(map[string]*model.Server)
         for _, sc := range scs {
-            server := config.GetServerByIp(sc.RemoteHost)
+            server := configRef.GetServerByIp(sc.RemoteHost)
             if server != nil {
                 serverMap[sc.RemoteHost] = server
             }
@@ -159,8 +151,8 @@ func main() {
     }
 }
 
-func executeLogQuery(server *model.Server, config *model.ServiceConfig, commandSuffix string) {
-    logPaths := config.LogPaths
+func executeLogQuery(server *model.Server, configRef *model.ServiceConfig, commandSuffix string) {
+    logPaths := configRef.LogPaths
     commands := make([]string, len(logPaths))
     for i, logPath := range logPaths {
         commands[i] = "cat " + logPath + commandSuffix
@@ -188,7 +180,7 @@ func executeLogQuery(server *model.Server, config *model.ServiceConfig, commandS
     }
 }
 
-func executeBashCommand(server *model.Server, config *model.ServiceConfig, command string) {
+func executeBashCommand(server *model.Server, configRef *model.ServiceConfig, command string) {
     sshRequest := &ssh.SSHRequest{
         RemoteHost: server.RemoteHost,
         Port: server.Port,

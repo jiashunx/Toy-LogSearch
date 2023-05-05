@@ -1,6 +1,7 @@
 package server
 
 import (
+    "Toy-LogSearch/env"
     "Toy-LogSearch/model"
     "encoding/json"
     "github.com/labstack/echo/v4"
@@ -9,8 +10,7 @@ import (
 )
 
 type EchoServer struct {
-    Config *model.Config
-    Address string
+    ConfigRef *model.Config
 }
 
 func (server *EchoServer) StartServer() {
@@ -19,8 +19,8 @@ func (server *EchoServer) StartServer() {
     // e.Use(middleware.Logger())
     e.Use(middleware.Recover())
     e.GET("/config.json", func(c echo.Context) error {
-        if server.Config != nil {
-            bs, err := json.Marshal(server.Config)
+        if server.ConfigRef != nil {
+            bs, err := json.Marshal(server.ConfigRef)
             if err != nil {
                 return err
             }
@@ -28,5 +28,5 @@ func (server *EchoServer) StartServer() {
         }
         return c.String(http.StatusNotFound, "")
     })
-    e.Logger.Fatal(e.Start(server.Address))
+    e.Logger.Fatal(e.Start(env.GetServerAddress()))
 }
