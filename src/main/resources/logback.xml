@@ -3,7 +3,7 @@
     scanPeriod, 默认单位毫秒，为true时此属性生效，默认时间间隔1分钟
     debug, 默认false，为true时会打印出logback内部日志信息，实时查看logback运行状态
 -->
-<configuration scan="true" scanPeriod="60 seconds" debug="true">
+<configuration scan="false" scanPeriod="60 seconds" debug="false">
 
     <!-- 变量值定义 -->
     <!-- <property name="APP_NAME" value="Toy-LogSearch" /> -->
