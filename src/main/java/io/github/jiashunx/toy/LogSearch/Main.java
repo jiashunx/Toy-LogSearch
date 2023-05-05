@@ -1,7 +1,6 @@
 package io.github.jiashunx.toy.LogSearch;
 
 import com.alibaba.fastjson.JSON;
-import io.github.jiashunx.masker.rest.framework.MRestServer;
 import io.github.jiashunx.masker.rest.framework.util.FileUtils;
 import io.github.jiashunx.masker.rest.framework.util.IOUtils;
 import io.github.jiashunx.masker.rest.framework.util.StringUtils;
@@ -9,11 +8,12 @@ import io.github.jiashunx.tools.jsch.SSHExecutor;
 import io.github.jiashunx.tools.jsch.SSHRequest;
 import io.github.jiashunx.tools.jsch.SSHResponse;
 import io.github.jiashunx.toy.LogSearch.model.AllConfig;
+import io.github.jiashunx.toy.LogSearch.model.RuntimeEnv;
 import io.github.jiashunx.toy.LogSearch.model.Server;
 import io.github.jiashunx.toy.LogSearch.model.ServiceConfig;
+import io.github.jiashunx.toy.LogSearch.server.EchoServer;
 import io.github.jiashunx.toy.LogSearch.type.CommandType;
 import io.github.jiashunx.toy.LogSearch.utils.CommandHelper;
-import io.netty.handler.codec.http.HttpResponseStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -36,39 +36,17 @@ public class Main {
     private static final Logger logger = LoggerFactory.getLogger(Main.class);
 
     public static void main(String[] args) throws Throwable {
-        AtomicReference<AllConfig> allConfigRef = new AtomicReference<>(loadConfig(args));
-        if (allConfigRef.get() == null) {
+        RuntimeEnv.init();
+        AtomicReference<AllConfig> configRef = new AtomicReference<>(loadConfig(args));
+        if (configRef.get() == null) {
             System.out.println("配置信息解析异常");
         }
-        new Thread(() -> {
-            String port = System.getProperty("server.port");
-            if (StringUtils.isEmpty(port)) {
-                port = "38888";
-            }
-            new MRestServer(Integer.parseInt(port), "config-server")
-                .context("/")
-                .filter("/*", (request, response, filterChain) -> {
-                    String requestUrl = request.getUrl();
-                    if (requestUrl.equals("/config.json")) {
-                        filterChain.doFilter(request, response);
-                        return;
-                    }
-                    response.write(HttpResponseStatus.NOT_FOUND);
-                })
-                .get("/config.json", (request, response) -> {
-                    if (allConfigRef.get() == null) {
-                        response.write(HttpResponseStatus.NOT_FOUND);
-                        return;
-                    }
-                    response.write(allConfigRef.get());
-                })
-                .getRestServer()
-                .start();
-        }, "config-server").start();
+        new EchoServer(configRef).start();
+        Thread.sleep(3 * 1000L);
         Scanner scanner = new Scanner(System.in);
         String inputLine = null;
-        if (allConfigRef.get() != null) {
-            allConfigRef.get().printConfigInfo();
+        if (configRef.get() != null) {
+            configRef.get().printConfigInfo();
         }
         CommandHelper.printHelpInfo();
         while (true) {
@@ -100,7 +78,7 @@ public class Main {
                     if (logger.isWarnEnabled()) {
                         logger.warn("结束main线程.");
                     }
-                    System.exit(1);
+                    System.exit(0);
                     break;
                 }
 
@@ -108,19 +86,19 @@ public class Main {
                     AllConfig allConfig = loadConfig(args);
                     if (allConfig == null) {
                         System.out.println("重新加载配置文件，获取配置信息为null，不更新配置信息！");
-                        if (allConfigRef.get() != null) {
-                            allConfigRef.get().printConfigInfo();
+                        if (configRef.get() != null) {
+                            configRef.get().printConfigInfo();
                         }
                         CommandHelper.printHelpInfo();
                         continue;
                     }
-                    allConfigRef.set(allConfig);
-                    allConfigRef.get().printConfigInfo();
+                    configRef.set(allConfig);
+                    configRef.get().printConfigInfo();
                     CommandHelper.printHelpInfo();
                     continue;
                 }
 
-                if (allConfigRef.get() == null) {
+                if (configRef.get() == null) {
                     System.out.println("当前配置对象为空，请同步配置后执行相应命令！");
                     CommandHelper.printHelpInfo();
                     continue;
@@ -128,7 +106,7 @@ public class Main {
 
                 String env = commandArgs[0];
                 String service = commandArgs[1];
-                List<ServiceConfig> configs = allConfigRef.get().getEnvServiceConfigs(env, service);
+                List<ServiceConfig> configs = configRef.get().getEnvServiceConfigs(env, service);
                 if (configs.isEmpty()) {
                     System.out.println(String.format("未找到env[%s], service[%s] 对应服务配置，请重新输入！", env, service));
                     CommandHelper.printHelpInfo();
@@ -136,7 +114,7 @@ public class Main {
                 }
                 Map<String, Server> serverMap = new HashMap<>();
                 for (ServiceConfig config: configs) {
-                    Server server = allConfigRef.get().getServerByIp(config.getIp());
+                    Server server = configRef.get().getServerByIp(config.getIp());
                     if (server != null) {
                         serverMap.put(config.getIp(), server);
                     }
