@@ -6,6 +6,7 @@ import (
     "errors"
     "fmt"
     "go.uber.org/zap"
+    "io"
     "net/http"
     "os"
     "strings"
@@ -169,8 +170,9 @@ func resolveFromConfigServer(cfgSrvPath string) (*Config, error) {
     log.Info(fmt.Sprintf("从配置服务[%s]获取配置信息，响应码：%d", url, response.StatusCode))
     bs := make([]byte, response.ContentLength)
     n, err := response.Body.Read(bs)
-    if err != nil {
+    if err != nil && err != io.EOF {
         log.Error(fmt.Sprintf("从配置服务[%s]获取配置信息，读取响应失败", url), zap.Error(err))
+        return nil, err
     }
     content := string(bs[0:n])
     log.Info(fmt.Sprintf("从配置服务[%s]获取配置信息：%s", url, content))
